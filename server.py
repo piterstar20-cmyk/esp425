@@ -2,59 +2,81 @@ import os
 from flask import Flask, request, jsonify
 import google.generativeai as genai
 import json
+import re
 
 app = Flask(__name__)
 
-# ---- API KEY from Render env ----
+# API KEY
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise RuntimeError("Set GEMINI_API_KEY in Render environment variables")
+    raise RuntimeError("GEMINI_API_KEY not set")
 
 genai.configure(api_key=GEMINI_API_KEY)
 MODEL = "gemini-2.5-flash"
 
-# -----------------------------
-# FORCE GEMINI TO RETURN JSON
-# -----------------------------
-JSON_PROMPT = """
-You are a command parser for an IoT system.
+FORMAT_PROMPT = """
+You are an IoT command parser. 
 
-Extract the following fields from the user's text:
-- device : one of ["red", "green", "blue"]
-- action : one of ["on", "off"]
-- delay : integer number of seconds (default 0 if not provided)
+Extract:
+- device: red, green, or blue
+- action: on or off
+- delay: integer
 
-Format output ONLY as raw JSON, no explanations.
+Return ONLY pure JSON.
+No markdown.
+No code fences.
+No explanation.
 
-Example:
-Input: "green light on for 3 seconds"
+Example input:
+"green light on for 3 seconds"
+
 Output:
-{"device":"green", "action":"on", "delay":3}
+{"device":"green","action":"on","delay":3}
 """
+
+
+def clean_json(text):
+    """Remove ```json  ``` and extract the actual JSON."""
+    
+    # Remove code fences
+    text = re.sub(r"```json", "", text, flags=re.IGNORECASE)
+    text = text.replace("```", "").strip()
+
+    # Try to extract JSON part using regex
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if match:
+        return match.group(0)
+
+    return text  # fallback
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json()
     if not data or "prompt" not in data:
-        return jsonify({"error": "Missing 'prompt' in JSON"}), 400
+        return jsonify({"error": "Missing 'prompt'"}), 400
 
     user_prompt = data["prompt"]
-
-    # Final prompt to Gemini
-    final_prompt = JSON_PROMPT + "\nUser Input: " + user_prompt
+    final_prompt = FORMAT_PROMPT + "\nUser Input: " + user_prompt
 
     try:
         model = genai.GenerativeModel(MODEL)
         response = model.generate_content(final_prompt)
-        raw_text = response.text.strip()
+        raw = response.text.strip()
 
-        # Try to parse JSON safely
+        cleaned = clean_json(raw)
+
+        # Attempt to parse cleaned text
         try:
-            parsed = json.loads(raw_text)
+            parsed = json.loads(cleaned)
             return jsonify(parsed)
+
         except json.JSONDecodeError:
-            return jsonify({"error": "Gemini returned invalid JSON", "raw": raw_text}), 500
+            return jsonify({
+                "error": "Invalid JSON after cleaning",
+                "raw": raw,
+                "cleaned": cleaned
+            }), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
