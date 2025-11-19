@@ -17,20 +17,33 @@ MODEL = "gemini-2.5-flash"      # or gemini-1.5-pro, etc.
 def generate():
     data = request.get_json()
     if not data or "prompt" not in data:
-        return jsonify({"error": "Missing 'prompt' in JSON"}), 400
+        return jsonify({"error": "Missing 'prompt'"}), 400
 
     prompt = data["prompt"]
+
     try:
         model = genai.GenerativeModel(MODEL)
-        response = model.generate_content(prompt,generation_config={"max_output_tokens": 300})
-        answer = response.text
-        return jsonify({"answer": answer})
+
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "max_output_tokens": 300    # ← این‌جاست!
+            },
+            safety_settings=None,
+            stream=False,
+            request_options={"timeout": 12}
+        )
+
+        return jsonify({"answer": response.text})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     # Render supplies PORT
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
