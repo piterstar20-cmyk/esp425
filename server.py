@@ -22,7 +22,7 @@ def generate():
     prompt = data["prompt"]
     try:
         model = genai.GenerativeModel(MODEL)
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt,generation_config={"max_output_tokens": 300})
         answer = response.text
         return jsonify({"answer": answer})
     except Exception as e:
@@ -32,4 +32,5 @@ if __name__ == "__main__":
     # Render supplies PORT
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
