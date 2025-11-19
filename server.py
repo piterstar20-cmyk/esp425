@@ -4,34 +4,32 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# ===== پیکربندی Gemini API =====
-# GEMINI_API_KEY را در Render → Config vars قرار دهید
+# ---- LOCAL API KEY (set in Render environment variables) ----
+# In Render dashboard: Config vars → add GEMINI_API_KEY = <your-key>
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise RuntimeError("لطفاً GEMINI_API_KEY را در environment variables تنظیم کنید")
+    raise RuntimeError("Set GEMINI_API_KEY in environment variables")
 
 genai.configure(api_key=GEMINI_API_KEY)
-MODEL = "gemini-2.5-flash"  # یا هر مدل دیگری که می‌خواهید
+MODEL = "gemini-2.5-flash"      # or gemini-1.5-pro, etc.
 
-# ===== مسیر دریافت متن =====
-@app.route("/speech", methods=["POST"])
-def speech_to_gemini():
-    # متن دریافتی از ESP32
-    text = request.get_data(as_text=True).strip()
-    if not text:
-        return jsonify({"error": "متن ارسال نشده"}), 400
+@app.route("/generate", methods=["POST"])
+def generate():
+    data = request.get_json()
+    if not data or "prompt" not in data:
+        return jsonify({"error": "Missing 'prompt' in JSON"}), 400
 
+    prompt = data["prompt"]
     try:
-        # ارسال متن به Gemini
         model = genai.GenerativeModel(MODEL)
-        response = model.generate_content(text)
+        response = model.generate_content(prompt)
         answer = response.text
-
         return jsonify({"answer": answer})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ===== اجرای Flask =====
 if __name__ == "__main__":
+    # Render supplies PORT
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
