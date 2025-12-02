@@ -1,19 +1,21 @@
-from flask import Flask, request, render_template
+from flask import Flask, request
+import os
 
 app = Flask(__name__)
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    result = None
-    if request.method == "POST":
-        try:
-            num1 = float(request.form.get("num1"))
-            num2 = float(request.form.get("num2"))
-            result = num1 + num2
-        except:
-            result = "ورودی نامعتبر است"
+FILE_PATH = "data.txt"
 
-    return render_template("index.html", result=result)
+@app.post("/write")
+def write_data():
+    data = request.json.get("text", "")
+    with open(FILE_PATH, "w", encoding="utf-8") as f:
+        f.write(data)
+    return "Saved"
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+@app.get("/read")
+def read_data():
+    if os.path.exists(FILE_PATH):
+        with open(FILE_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        return "فایلی وجود ندارد"
